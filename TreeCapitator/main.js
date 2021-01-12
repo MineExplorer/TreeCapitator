@@ -106,9 +106,11 @@ var TreeLogger;
         //@ts-ignore
         var dropFunc = Block.dropFunctions[block.id];
         if (dropFunc) {
-            var drop = dropFunc({ x: x, y: y, z: z }, block.id, block.data, 0, {});
+            var enchant = ToolAPI.getEnchantExtraData();
+            var item = { id: 0, count: 0, data: 0 };
+            var drop = dropFunc({ x: x, y: y, z: z }, block.id, block.data, 0, enchant, item, region);
             for (var i in drop) {
-                region.spawnDroppedItem(x, y, z, drop[i][0], drop[i][1], drop[i][2]);
+                region.spawnDroppedItem(x, y, z, drop[i][0], drop[i][1], drop[i][2], drop[i][3] || null);
             }
         }
         else {

@@ -44,9 +44,11 @@ namespace TreeLogger {
 		//@ts-ignore
 		let dropFunc = Block.dropFunctions[block.id];
 		if (dropFunc) {
-			let drop = dropFunc({x: x, y: y, z: z}, block.id, block.data, 0, {});
+			let enchant = ToolAPI.getEnchantExtraData();
+			let item = {id: 0, count: 0, data: 0};
+			let drop = dropFunc({x: x, y: y, z: z}, block.id, block.data, 0, enchant, item, region);
 			for (let i in drop) {
-				region.spawnDroppedItem(x, y, z, drop[i][0], drop[i][1], drop[i][2]);
+				region.spawnDroppedItem(x, y, z, drop[i][0], drop[i][1], drop[i][2], drop[i][3] || null);
 			}
 		} else {
 			if (block.id == 18) {
