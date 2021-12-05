@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "target": "ES5",
+    "lib": ["ESNext"],
+    "outFile": "../main.js",
+    "allowJs": true,
+    "experimentalDecorators": true,
+    "downlevelIteration": true
+  },
+  "exclude": [],
+  "include": [
+    "api.ts",
+    "tree_logger.ts"
+  ],
+  "files": [
+    "../../../declarations/core-engine.d.ts"
+  ]
+}
+

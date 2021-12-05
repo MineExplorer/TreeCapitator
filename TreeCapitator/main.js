@@ -1,14 +1,15 @@
 var TreeCapitator;
 (function (TreeCapitator) {
-    var TreeData = [];
-    var DirtTiles = {
+    var treeData = [];
+    var dirtTiles = {
         2: true,
         3: true,
         60: true
     };
+    TreeCapitator.calculateDestroyTime = __config__.getBool("increase_tree_destroy_time");
     function getTreeData(block) {
-        for (var i in TreeData) {
-            var tree = TreeData[i];
+        for (var i in treeData) {
+            var tree = treeData[i];
             if (this.isTreeBlock(block, tree.log)) {
                 return tree;
             }
@@ -19,8 +20,8 @@ var TreeCapitator;
     function isTreeBlock(block, treeBlocks) {
         var id = block.id, data = block.data % 4;
         for (var i in treeBlocks) {
-            block = treeBlocks[i];
-            if (block[0] == id && (block[1] == -1 || block[1] == data)) {
+            var tile = treeBlocks[i];
+            if (tile[0] == id && (tile[1] == -1 || tile[1] == data)) {
                 return true;
             }
         }
@@ -28,7 +29,7 @@ var TreeCapitator;
     }
     TreeCapitator.isTreeBlock = isTreeBlock;
     function isDirtTile(blockID) {
-        return DirtTiles[blockID] || false;
+        return dirtTiles[blockID] || false;
     }
     TreeCapitator.isDirtTile = isDirtTile;
     /** format
@@ -41,11 +42,11 @@ var TreeCapitator;
             log = [log];
         if (typeof leaves[0] !== "object")
             leaves = [leaves];
-        TreeData.push({ log: log, leaves: leaves, radius: leavesRadius });
+        treeData.push({ log: log, leaves: leaves, radius: leavesRadius });
     }
     TreeCapitator.registerTree = registerTree;
     function registerDirtTile(blockID) {
-        DirtTiles[blockID] = true;
+        dirtTiles[blockID] = true;
     }
     TreeCapitator.registerDirtTile = registerDirtTile;
 })(TreeCapitator || (TreeCapitator = {}));
@@ -56,9 +57,6 @@ TreeCapitator.registerTree([17, 3], [18, 3], 7);
 TreeCapitator.registerTree([162, 0], [161, 0]);
 TreeCapitator.registerTree([162, 1], [161, 1], 6);
 ModAPI.registerAPI("TreeCapitator", TreeCapitator);
-Callback.addCallback("LevelLoaded", function () {
-    TreeCapitator.calculateDestroyTime = __config__.getBool("calculate_destroy_time");
-});
 var TreeLogger;
 (function (TreeLogger) {
     var TreeDestroyData = /** @class */ (function () {
@@ -86,34 +84,31 @@ var TreeLogger;
                     }
                 }
     }
-    function destroyLog(region, x, y, z, block, tree, toolLevel, enchant) {
-        region.setBlock(x, y, z, 0, 0);
+    function getDrop(block, x, y, z, region, toolLevel, enchant) {
+        if (toolLevel === void 0) { toolLevel = 0; }
+        if (enchant === void 0) { enchant = ToolAPI.getEnchantExtraData(); }
         //@ts-ignore
         var dropFunc = Block.dropFunctions[block.id];
         if (dropFunc) {
-            var drop = dropFunc({ x: x, y: y, z: z }, block.id, block.data, toolLevel, enchant);
+            var item = { id: 0, count: 0, data: 0 };
+            var drop = dropFunc({ x: x, y: y, z: z }, block.id, block.data, toolLevel, enchant, item, region);
             for (var i in drop) {
-                region.spawnDroppedItem(x, y, z, drop[i][0], drop[i][1], drop[i][2]);
+                region.spawnDroppedItem(x, y, z, drop[i][0], drop[i][1], drop[i][2], drop[i][3] || null);
             }
+            return true;
         }
-        else {
+        return false;
+    }
+    function destroyLog(region, x, y, z, block, tree, toolLevel, enchant) {
+        region.setBlock(x, y, z, 0, 0);
+        if (!getDrop(block, x, y, z, region, toolLevel, enchant)) {
             region.spawnDroppedItem(x, y, z, block.id, 1, block.data % 4);
         }
         checkLeavesFor6Sides(region, x, y, z, tree.leaves);
     }
     function destroyLeaves(region, x, y, z) {
         var block = region.getBlock(x, y, z);
-        //@ts-ignore
-        var dropFunc = Block.dropFunctions[block.id];
-        if (dropFunc) {
-            var enchant = ToolAPI.getEnchantExtraData();
-            var item = { id: 0, count: 0, data: 0 };
-            var drop = dropFunc({ x: x, y: y, z: z }, block.id, block.data, 0, enchant, item, region);
-            for (var i in drop) {
-                region.spawnDroppedItem(x, y, z, drop[i][0], drop[i][1], drop[i][2], drop[i][3] || null);
-            }
-        }
-        else {
+        if (!getDrop(block, x, y, z, region)) {
             if (block.id == 18) {
                 if (block.data != 3 && Math.random() < 1 / 20 || block.data == 3 && Math.random() < 1 / 40) {
                     region.spawnDroppedItem(x, y, z, 6, 1, block.data);
@@ -203,8 +198,7 @@ var TreeLogger;
                 block = region.getBlock(coords_1.x, coords_1.y, coords_1.z);
                 destroyLog(region, coords_1.x, coords_1.y, coords_1.z, block, tree, toolLevel, enchant);
                 if (!skipToolDamage && Game.isItemSpendingAllowed(player)) {
-                    //@ts-ignore
-                    if (!(toolData.onDestroy && toolData.onDestroy(item, coords_1, block)) && Math.random() < 1 / (enchant.unbreaking + 1)) {
+                    if (!(toolData.onDestroy && toolData.onDestroy(item, coords_1, block, player)) && Math.random() < 1 / (enchant.unbreaking + 1)) {
                         item.data++;
                         if (toolData.isWeapon) {
                             item.data++;

@@ -1,4 +1,4 @@
 {
   "enabled":true,
-  "calculate_destroy_time":true
+  "increase_tree_destroy_time":true
 }
