@@ -1,3 +1,4 @@
+var NEW_CORE_API = getMCPEVersion().main === 28;
 var TreeCapitator;
 (function (TreeCapitator) {
     var treeData = [];
@@ -84,14 +85,18 @@ var TreeLogger;
                     }
                 }
     }
-    function getDrop(block, x, y, z, region, toolLevel, enchant) {
-        if (toolLevel === void 0) { toolLevel = 0; }
-        if (enchant === void 0) { enchant = ToolAPI.getEnchantExtraData(); }
+    function getDrop(region, x, y, z, block, player, item, enchant) {
+        if (item === void 0) { item = { id: 0, count: 0, data: 0 }; }
+        if (NEW_CORE_API) {
+            region.breakBlock(x, y, z, true, player, item);
+            return true;
+        }
+        region.setBlock(x, y, z, 0, 0);
         //@ts-ignore
         var dropFunc = Block.dropFunctions[block.id];
         if (dropFunc) {
-            var item = { id: 0, count: 0, data: 0 };
-            var drop = dropFunc({ x: x, y: y, z: z }, block.id, block.data, toolLevel, enchant, item, region);
+            enchant = enchant || ToolAPI.getEnchantExtraData();
+            var drop = dropFunc({ x: x, y: y, z: z }, block.id, block.data, ToolAPI.getBlockDestroyLevel(block.id), enchant, item, region);
             for (var i in drop) {
                 region.spawnDroppedItem(x, y, z, drop[i][0], drop[i][1], drop[i][2], drop[i][3] || null);
             }
@@ -99,29 +104,31 @@ var TreeLogger;
         }
         return false;
     }
-    function destroyLog(region, x, y, z, block, tree, toolLevel, enchant) {
-        region.setBlock(x, y, z, 0, 0);
-        if (!getDrop(block, x, y, z, region, toolLevel, enchant)) {
+    function destroyLog(region, x, y, z, block, tree, player, item, enchant) {
+        if (!getDrop(region, x, y, z, block, player, item, enchant)) {
             region.spawnDroppedItem(x, y, z, block.id, 1, block.data % 4);
         }
         checkLeavesFor6Sides(region, x, y, z, tree.leaves);
     }
-    function destroyLeaves(region, x, y, z) {
+    function destroyLeaves(region, x, y, z, player) {
         var block = region.getBlock(x, y, z);
-        if (!getDrop(block, x, y, z, region)) {
-            if (block.id == 18) {
-                if (block.data != 3 && Math.random() < 1 / 20 || block.data == 3 && Math.random() < 1 / 40) {
-                    region.spawnDroppedItem(x, y, z, 6, 1, block.data);
+        if (!getDrop(region, x, y, z, block, player)) {
+            var id = block.id, data = block.data % 4;
+            if (id == 18) {
+                if (data != 3 && Math.random() < 1 / 20 || data == 3 && Math.random() < 1 / 40) {
+                    region.spawnDroppedItem(x, y, z, 6, 1, data);
                 }
-                if (block.data == 0 && Math.random() < 1 / 200) {
+                if (data == 0 && Math.random() < 1 / 200) {
                     region.spawnDroppedItem(x, y, z, 260, 1, 0);
                 }
             }
-            if (block.id == 161 && Math.random() < 1 / 20) {
-                region.spawnDroppedItem(x, y, z, 6, 1, block.data + 4);
+            if (id == 161 && Math.random() < 1 / 20) {
+                region.spawnDroppedItem(x, y, z, 6, 1, data + 4);
+            }
+            if (Math.random() < 1 / 50) {
+                region.spawnDroppedItem(x, y, z, 280, 1, 0);
             }
         }
-        region.setBlock(x, y, z, 0, 0);
     }
     function checkLeaves(region, x, y, z, leaves) {
         if (TreeCapitator.isTreeBlock(region.getBlock(x, y, z), leaves)) {
@@ -136,8 +143,7 @@ var TreeLogger;
         checkLeaves(region, x, y - 1, z, leaves);
         checkLeaves(region, x, y + 1, z, leaves);
     }
-    function isChoppingTree(player, region, coords, block) {
-        var item = Entity.getCarriedItem(player);
+    function isChoppingTree(player, region, coords, block, item) {
         var tree = TreeCapitator.getTreeData(block);
         if (tree && !Entity.getSneaking(player) && ToolAPI.getToolLevelViaBlock(item.id, block.id)) {
             for (var y = coords.y; y > 0; y--) {
@@ -171,10 +177,10 @@ var TreeLogger;
     }
     function startDestroy(coords, block, player) {
         var region = BlockSource.getDefaultForActor(player);
-        if (region && TreeCapitator.calculateDestroyTime && isChoppingTree(player, region, coords, block)) {
+        var item = Entity.getCarriedItem(player);
+        if (region && TreeCapitator.calculateDestroyTime && isChoppingTree(player, region, coords, block, item) && ToolAPI.getToolLevelViaBlock(item.id, block.id) > 0) {
             var treeSize = getTreeSize(region, coords, block);
             if (treeSize > 0) {
-                var item = Entity.getCarriedItem(player);
                 var destroyTime = ToolAPI.getDestroyTimeViaTool(block, item, coords);
                 Block.setTempDestroyTime(block.id, destroyTime * treeSize);
             }
@@ -183,10 +189,11 @@ var TreeLogger;
     TreeLogger.startDestroy = startDestroy;
     function onDestroy(coords, block, player) {
         var region = BlockSource.getDefaultForActor(player);
-        if (isChoppingTree(player, region, coords, block) && getTreeSize(region, coords, block) > 0) {
-            var item = Entity.getCarriedItem(player);
+        var item = Entity.getCarriedItem(player);
+        if (isChoppingTree(player, region, coords, block, item) && getTreeSize(region, coords, block) > 0 && ToolAPI.getToolLevelViaBlock(item.id, block.id) > 0) {
+            if (NEW_CORE_API)
+                region.setDestroyParticlesEnabled(false);
             var toolData = ToolAPI.getToolData(item.id);
-            var toolLevel = ToolAPI.getToolLevelViaBlock(item.id, block.id);
             var enchant = ToolAPI.getEnchantExtraData(item.extra);
             var skipToolDamage = !toolData.isNative;
             if (toolData.modifyEnchant) {
@@ -196,7 +203,7 @@ var TreeLogger;
             for (var coordKey in destroyData.log) {
                 var coords_1 = convertCoords(coordKey);
                 block = region.getBlock(coords_1.x, coords_1.y, coords_1.z);
-                destroyLog(region, coords_1.x, coords_1.y, coords_1.z, block, tree, toolLevel, enchant);
+                destroyLog(region, coords_1.x, coords_1.y, coords_1.z, block, tree, player, item, enchant);
                 if (!skipToolDamage && Game.isItemSpendingAllowed(player)) {
                     if (!(toolData.onDestroy && toolData.onDestroy(item, coords_1, block, player)) && Math.random() < 1 / (enchant.unbreaking + 1)) {
                         item.data++;
@@ -204,7 +211,6 @@ var TreeLogger;
                             item.data++;
                         }
                     }
-                    //@ts-ignore
                     if (item.data >= toolData.toolMaterial.durability) {
                         if (!(toolData.onBroke && toolData.onBroke(item))) {
                             item.id = toolData.brokenId;
@@ -223,7 +229,7 @@ var TreeLogger;
                 destroyData.leaves = {};
                 for (var coordKey in leavesToDestroy) {
                     var coords_2 = convertCoords(coordKey);
-                    destroyLeaves(region, coords_2.x, coords_2.y, coords_2.z);
+                    destroyLeaves(region, coords_2.x, coords_2.y, coords_2.z, player);
                     if (i < tree.radius) {
                         checkLeavesFor6Sides(region, coords_2.x, coords_2.y, coords_2.z, tree.leaves);
                     }

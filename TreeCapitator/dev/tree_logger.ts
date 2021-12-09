@@ -24,12 +24,17 @@ namespace TreeLogger {
 		}
 	}
 
-	function getDrop(block: Tile, x: number, y: number, z: number, region: BlockSource, toolLevel: number = 0, enchant: ToolAPI.EnchantData = ToolAPI.getEnchantExtraData()): boolean {
+	function getDrop(region: BlockSource, x: number, y: number, z: number, block: Tile, player: number, item: ItemInstance = {id: 0, count: 0, data: 0}, enchant?: ToolAPI.EnchantData): boolean {
+		if (NEW_CORE_API) {
+			region.breakBlock(x, y, z, true, player, item);
+			return true;
+		}
+		region.setBlock(x, y, z, 0, 0);
 		//@ts-ignore
 		const dropFunc = Block.dropFunctions[block.id];
 		if (dropFunc) {
-			const item = {id: 0, count: 0, data: 0};
-			const drop = dropFunc({x: x, y: y, z: z}, block.id, block.data, toolLevel, enchant, item, region);
+			enchant = enchant || ToolAPI.getEnchantExtraData();
+			const drop = dropFunc({x: x, y: y, z: z}, block.id, block.data, ToolAPI.getToolLevel(item.id), enchant, item, region);
 			for (let i in drop) {
 				region.spawnDroppedItem(x, y, z, drop[i][0], drop[i][1], drop[i][2], drop[i][3] || null);
 			}
@@ -38,30 +43,32 @@ namespace TreeLogger {
 		return false;
 	}
 
-	function destroyLog(region: BlockSource, x: number, y: number, z: number, block: Tile, tree: TreeParams, toolLevel: number, enchant: ToolAPI.EnchantData): void {
-		region.setBlock(x, y, z, 0, 0);
-		if (!getDrop(block, x, y, z, region, toolLevel, enchant)) {
+	function destroyLog(region: BlockSource, x: number, y: number, z: number, block: Tile, tree: TreeParams, player: number, item: ItemInstance, enchant: ToolAPI.EnchantData): void {
+		if (!getDrop(region, x, y, z, block, player, item, enchant)) {
 			region.spawnDroppedItem(x, y, z, block.id, 1, block.data%4);
 		}
-		checkLeavesFor6Sides(region, x, y, z, tree.leaves)
+		checkLeavesFor6Sides(region, x, y, z, tree.leaves);
 	}
 
-	function destroyLeaves(region: BlockSource, x: number, y: number, z: number): void {
+	function destroyLeaves(region: BlockSource, x: number, y: number, z: number, player: number): void {
 		const block = region.getBlock(x, y, z);
-		if (!getDrop(block, x, y, z, region)) {
-			if (block.id == 18) {
-				if (block.data != 3 && Math.random() < 1/20 || block.data == 3 && Math.random() < 1/40) {
-					region.spawnDroppedItem(x, y, z, 6, 1, block.data);
+		if (!getDrop(region, x, y, z, block, player)) {
+			const id = block.id, data = block.data%4;
+			if (id == 18) {
+				if (data != 3 && Math.random() < 1/20 || data == 3 && Math.random() < 1/40) {
+					region.spawnDroppedItem(x, y, z, 6, 1, data);
 				}
-				if (block.data == 0 && Math.random() < 1/200) {
+				if (data == 0 && Math.random() < 1/200) {
 					region.spawnDroppedItem(x, y, z, 260, 1, 0);
 				}
 			}
-			if (block.id == 161 && Math.random() < 1/20) {
-				region.spawnDroppedItem(x, y, z, 6, 1, block.data + 4);
+			if (id == 161 && Math.random() < 1/20) {
+				region.spawnDroppedItem(x, y, z, 6, 1, data + 4);
+			}
+			if (Math.random() < 1/50) {
+				region.spawnDroppedItem(x, y, z, 280, 1, 0);
 			}
 		}
-		region.setBlock(x, y, z, 0, 0);
 	}
 
 	function checkLeaves(region: BlockSource, x: number, y: number, z: number, leaves: [number, number][]): void {
@@ -79,10 +86,9 @@ namespace TreeLogger {
 		checkLeaves(region, x, y+1, z, leaves);
 	}
 
-	function isChoppingTree(player: number, region: BlockSource, coords: Vector, block: Tile): boolean {
-		const item = Entity.getCarriedItem(player);
+	function isChoppingTree(player: number, region: BlockSource, coords: Vector, block: Tile, item: ItemInstance): boolean {
 		const tree = TreeCapitator.getTreeData(block);
-		if (tree && !Entity.getSneaking(player) && ToolAPI.getToolLevelViaBlock(item.id, block.id)) {
+		if (tree && !Entity.getSneaking(player) && ToolAPI.getToolLevelViaBlock(item.id, block.id) > 0) {
 			for (let y = coords.y; y > 0; y--) {
 				const block = region.getBlock(coords.x, y - 1, coords.z);
 				if (TreeCapitator.isDirtTile(block.id)) {
@@ -117,10 +123,10 @@ namespace TreeLogger {
 
 	export function startDestroy(coords: Callback.ItemUseCoordinates, block: Tile, player: number): void {
 		const region = BlockSource.getDefaultForActor(player);
-		if (region && TreeCapitator.calculateDestroyTime && isChoppingTree(player, region, coords, block)) {
+		const item = Entity.getCarriedItem(player);
+		if (region && TreeCapitator.calculateDestroyTime && isChoppingTree(player, region, coords, block, item)) {
 			const treeSize = getTreeSize(region, coords, block);
 			if (treeSize > 0) {
-				const item = Entity.getCarriedItem(player);
 				const destroyTime = ToolAPI.getDestroyTimeViaTool(block, item, coords);
 				Block.setTempDestroyTime(block.id, destroyTime * treeSize);
 			}
@@ -129,10 +135,10 @@ namespace TreeLogger {
 
 	export function onDestroy(coords: Callback.ItemUseCoordinates, block: Tile, player: number): void {
 		const region = BlockSource.getDefaultForActor(player);
-		if (isChoppingTree(player, region, coords, block) && getTreeSize(region, coords, block) > 0) {
-			const item = Entity.getCarriedItem(player);
+		const item = Entity.getCarriedItem(player);
+		if (isChoppingTree(player, region, coords, block, item) && getTreeSize(region, coords, block) > 0) {
+			if (NEW_CORE_API) region.setDestroyParticlesEnabled(false);
 			const toolData = ToolAPI.getToolData(item.id);
-			const toolLevel = ToolAPI.getToolLevelViaBlock(item.id, block.id);
 			const enchant = ToolAPI.getEnchantExtraData(item.extra);
 			let skipToolDamage = !toolData.isNative;
 			if (toolData.modifyEnchant) {
@@ -142,7 +148,7 @@ namespace TreeLogger {
 			for (let coordKey in destroyData.log) {
 				const coords = convertCoords(coordKey);
 				block = region.getBlock(coords.x, coords.y, coords.z);
-				destroyLog(region, coords.x, coords.y, coords.z, block, tree, toolLevel, enchant);
+				destroyLog(region, coords.x, coords.y, coords.z, block, tree, player, item, enchant);
 				if (!skipToolDamage && Game.isItemSpendingAllowed(player)) {
 					if (!(toolData.onDestroy && toolData.onDestroy(item, coords as any, block, player)) && Math.random() < 1 / (enchant.unbreaking + 1)) {
 						item.data++;
@@ -150,7 +156,6 @@ namespace TreeLogger {
 							item.data++;
 						}
 					}
-					//@ts-ignore
 					if (item.data >= toolData.toolMaterial.durability) {
 						if (!(toolData.onBroke && toolData.onBroke(item))) {
 							item.id = toolData.brokenId;
@@ -170,7 +175,7 @@ namespace TreeLogger {
 				destroyData.leaves = {};
 				for (let coordKey in leavesToDestroy) {
 					const coords = convertCoords(coordKey);
-					destroyLeaves(region, coords.x, coords.y, coords.z);
+					destroyLeaves(region, coords.x, coords.y, coords.z, player);
 					if (i < tree.radius) {
 						checkLeavesFor6Sides(region, coords.x, coords.y, coords.z, tree.leaves);
 					}

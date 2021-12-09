@@ -4,6 +4,8 @@ type TreeParams = {
 	radius: number
 }
 
+const NEW_CORE_API = getMCPEVersion().main === 28;
+
 namespace TreeCapitator {
 	const treeData = [];
 	const dirtTiles = {
