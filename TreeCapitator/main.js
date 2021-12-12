@@ -1,4 +1,4 @@
-var NEW_CORE_API = getMCPEVersion().main === 28;
+var NEW_CORE_API = getMCPEVersion().main > 28;
 var TreeCapitator;
 (function (TreeCapitator) {
     var treeData = [];
@@ -96,7 +96,7 @@ var TreeLogger;
         var dropFunc = Block.dropFunctions[block.id];
         if (dropFunc) {
             enchant = enchant || ToolAPI.getEnchantExtraData();
-            var drop = dropFunc({ x: x, y: y, z: z }, block.id, block.data, ToolAPI.getBlockDestroyLevel(block.id), enchant, item, region);
+            var drop = dropFunc({ x: x, y: y, z: z }, block.id, block.data, ToolAPI.getToolLevel(item.id), enchant, item, region);
             for (var i in drop) {
                 region.spawnDroppedItem(x, y, z, drop[i][0], drop[i][1], drop[i][2], drop[i][3] || null);
             }
@@ -145,7 +145,7 @@ var TreeLogger;
     }
     function isChoppingTree(player, region, coords, block, item) {
         var tree = TreeCapitator.getTreeData(block);
-        if (tree && !Entity.getSneaking(player) && ToolAPI.getToolLevelViaBlock(item.id, block.id)) {
+        if (tree && !Entity.getSneaking(player) && ToolAPI.getToolLevelViaBlock(item.id, block.id) > 0) {
             for (var y = coords.y; y > 0; y--) {
                 var block_1 = region.getBlock(coords.x, y - 1, coords.z);
                 if (TreeCapitator.isDirtTile(block_1.id)) {
@@ -178,7 +178,7 @@ var TreeLogger;
     function startDestroy(coords, block, player) {
         var region = BlockSource.getDefaultForActor(player);
         var item = Entity.getCarriedItem(player);
-        if (region && TreeCapitator.calculateDestroyTime && isChoppingTree(player, region, coords, block, item) && ToolAPI.getToolLevelViaBlock(item.id, block.id) > 0) {
+        if (region && TreeCapitator.calculateDestroyTime && isChoppingTree(player, region, coords, block, item)) {
             var treeSize = getTreeSize(region, coords, block);
             if (treeSize > 0) {
                 var destroyTime = ToolAPI.getDestroyTimeViaTool(block, item, coords);
@@ -190,7 +190,7 @@ var TreeLogger;
     function onDestroy(coords, block, player) {
         var region = BlockSource.getDefaultForActor(player);
         var item = Entity.getCarriedItem(player);
-        if (isChoppingTree(player, region, coords, block, item) && getTreeSize(region, coords, block) > 0 && ToolAPI.getToolLevelViaBlock(item.id, block.id) > 0) {
+        if (isChoppingTree(player, region, coords, block, item) && getTreeSize(region, coords, block) > 0) {
             if (NEW_CORE_API)
                 region.setDestroyParticlesEnabled(false);
             var toolData = ToolAPI.getToolData(item.id);
