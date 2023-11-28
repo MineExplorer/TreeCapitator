@@ -5,7 +5,7 @@
     "outFile": "../main.js",
     "allowJs": true,
     "experimentalDecorators": true,
-    "downlevelIteration": true
+    "downlevelIteration": false
   },
   "exclude": [],
   "include": [
@@ -13,7 +13,7 @@
     "tree_logger.ts"
   ],
   "files": [
-    "../../../declarations/core-engine.d.ts"
+    "../../declarations/core-engine.d.ts"
   ]
 }
 
