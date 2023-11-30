@@ -3,11 +3,13 @@ class TreeLogger {
 	leavesMap = {};
 	logCount = 0;
 	hasLeaves = false;
+	startCoords: Vector;
 	player: number;
 	region: BlockSource;
 	tree: TreeParams;
 
-	constructor(treeData: TreeParams, playerUid: number, isLocal: boolean) {
+	constructor(startCoords: Vector, treeData: TreeParams, playerUid: number, isLocal: boolean) {
+		this.startCoords = startCoords;
 		this.tree = treeData;
 		this.player = playerUid;
 		this.region = isLocal ?
@@ -16,6 +18,10 @@ class TreeLogger {
 	}
 
 	checkLog(x: number, y: number, z: number, tree: TreeParams): void {
+		if (Math.abs(x - this.startCoords.x) > this.tree.radius ||
+			Math.abs(z - this.startCoords.z) > this.tree.radius) {
+			return;
+		}
 		this.logMap[x+':'+y+':'+z] = true;
 		this.logCount++;
 		for (let xx = x - 1; xx <= x + 1; xx++)
@@ -60,8 +66,9 @@ class TreeLogger {
 
 	getVanillaDrop(x: number, y: number, z: number, block: Tile) {
 		const { id, data } = block;
-		if (id == 17 || id == 161) {
-			this.region.spawnDroppedItem(x, y, z, id, 1, data);
+		var blockDefaultDrop = [17, 162, VanillaTileID.crimson_stem, VanillaTileID.warped_stem, VanillaTileID.nether_wart_block, VanillaTileID.warped_wart_block, VanillaTileID.shroomlight]
+		if (blockDefaultDrop.indexOf(id) != -1) {
+			this.region.spawnDroppedItem(x, y, z, Block.convertBlockToItemId(id), 1, data);
 		}
 		if (id == 18) {
 			if (data != 3 && Math.random() < 1/20 || data == 3 && Math.random() < 1/40) {
@@ -74,7 +81,7 @@ class TreeLogger {
 		if (id == 161 && Math.random() < 1/20) {
 			this.region.spawnDroppedItem(x, y, z, 6, 1, data + 4);
 		}
-		if (Math.random() < 1/50) {
+		if ((id == 18 || id == 161) && Math.random() < 1/50) {
 			this.region.spawnDroppedItem(x, y, z, 280, 1, 0);
 		}
 	}
@@ -95,24 +102,12 @@ class TreeLogger {
 		this.checkLeaves(x, y+1, z);
 	}
 
-	isChoppingTree(coords: Vector, block: Tile, item: ItemInstance): boolean {
-		if (!Entity.getSneaking(this.player) && ToolAPI.getToolLevelViaBlock(item.id, block.id) > 0) {
-			for (let y = coords.y; y > 0; y--) {
-				const block = this.region.getBlock(coords.x, y - 1, coords.z);
-				if (TreeCapitator.isDirtTile(block.id)) {
-					return true;
-				}
-				if (!TreeCapitator.isTreeBlock(block, this.tree.log)) {
-					break;
-				}
-			}
-		}
-		return false;
+	isChoppingTree(block: Tile, item: ItemInstance): boolean {
+		return (!Entity.getSneaking(this.player) && ToolAPI.getToolLevelViaBlock(item.id, block.id) > 0);
 	}
 
-	getTreeSize(coords: Vector, block: Tile): number {
-		const tree = TreeCapitator.getTreeData(block);
-		this.checkLog(coords.x, coords.y, coords.z, tree);
+	getTreeSize(coords: Vector): number {
+		this.checkLog(coords.x, coords.y, coords.z, this.tree);
 		if (this.hasLeaves) {
 			return this.logCount;
 		}
@@ -130,9 +125,9 @@ class TreeLogger {
 
 	setDestroyTime(coords: Callback.ItemUseCoordinates, block: Tile) {
 		const item = Entity.getCarriedItem(this.player);
-		if (this.isChoppingTree(coords, block, item)) {
-			const treeSize = this.getTreeSize(coords, block);
-			Game.message("Tree size: " + treeSize);
+		if (this.isChoppingTree(block, item)) {
+			const treeSize = this.getTreeSize(coords);
+			//Game.message("Tree size: " + treeSize);
 			if (treeSize > 0) {
 				const destroyTime = ToolAPI.getDestroyTimeViaTool(block, item, coords);
 				Block.setTempDestroyTime(block.id, destroyTime * treeSize);
@@ -142,7 +137,7 @@ class TreeLogger {
 
 	destroyTree(coords: Callback.ItemUseCoordinates, block: Tile): void {
 		const item = Entity.getCarriedItem(this.player);
-		if (this.isChoppingTree(coords, block, item) && this.getTreeSize(coords, block) > 0) {
+		if (this.isChoppingTree(block, item) && this.getTreeSize(coords) > 0) {
 			//if (NEW_CORE_API) this.region.setDestroyParticlesEnabled(false);
 			const toolData = ToolAPI.getToolData(item.id);
 			const enchant = ToolAPI.getEnchantExtraData(item.extra);
@@ -204,7 +199,7 @@ class TreeLogger {
 	static onStartDestroy(coords: Callback.ItemUseCoordinates, block: Tile, player: number): void {
 		const tree = TreeCapitator.getTreeData(block);
 		if (tree) {
-			const treeLogger = new TreeLogger(tree, player, Network.inRemoteWorld())
+			const treeLogger = new TreeLogger(coords, tree, player, Network.inRemoteWorld())
 			treeLogger.setDestroyTime(coords, block);
 		}
 	}
@@ -212,7 +207,7 @@ class TreeLogger {
 	static onDestroy(coords: Callback.ItemUseCoordinates, block: Tile, player: number): void {
 		const tree = TreeCapitator.getTreeData(block);
 		if (tree) {
-			const treeLogger = new TreeLogger(tree, player, false)
+			const treeLogger = new TreeLogger(coords, tree, player, false)
 			treeLogger.destroyTree(coords, block);
 		}
 	}

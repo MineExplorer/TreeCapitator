@@ -1,15 +1,12 @@
 var GAME_VERSION = getMCPEVersion().array[1];
 var NEW_CORE_API = GAME_VERSION >= 16;
+if (GAME_VERSION >= 16) {
+    ToolAPI.registerBlockMaterial(VanillaTileID.crimson_stem, "wood", 1, true);
+    ToolAPI.registerBlockMaterial(VanillaTileID.warped_stem, "wood", 1, true);
+}
 var TreeCapitator;
 (function (TreeCapitator) {
     var treeData = [];
-    var dirtTiles = {
-        2: true,
-        3: true,
-        60: true, //farmland
-    };
-    dirtTiles[VanillaTileID.crimson_nylium] = true;
-    dirtTiles[VanillaTileID.warped_nylium] = true;
     TreeCapitator.calculateDestroyTime = __config__.getBool("increase_tree_destroy_time");
     function getTreeData(block) {
         for (var i in treeData) {
@@ -32,14 +29,6 @@ var TreeCapitator;
         return false;
     }
     TreeCapitator.isTreeBlock = isTreeBlock;
-    /**
-     * @param blockID block numeric id
-     * @returns true if trees can grow on this tile, false otherwise
-     */
-    function isDirtTile(blockID) {
-        return dirtTiles[blockID] || false;
-    }
-    TreeCapitator.isDirtTile = isDirtTile;
     function registerTree(log, leaves, leavesRadius) {
         if (leavesRadius === void 0) { leavesRadius = 5; }
         if (typeof log[0] !== "object")
@@ -49,13 +38,6 @@ var TreeCapitator;
         treeData.push({ log: log, leaves: leaves, radius: leavesRadius });
     }
     TreeCapitator.registerTree = registerTree;
-    /**
-     * Registers block as a valid tree ground.
-     */
-    function registerDirtTile(blockID) {
-        dirtTiles[blockID] = true;
-    }
-    TreeCapitator.registerDirtTile = registerDirtTile;
 })(TreeCapitator || (TreeCapitator = {}));
 TreeCapitator.registerTree([17, 0], [18, 0], 6); // oak
 TreeCapitator.registerTree([17, 1], [18, 1], 5); // spruce
@@ -64,16 +46,18 @@ TreeCapitator.registerTree([17, 3], [18, 3], 7); // jungle
 TreeCapitator.registerTree([162, 0], [161, 0], 5); // acacia
 TreeCapitator.registerTree([162, 1], [161, 1], 6); // dark oak
 if (GAME_VERSION >= 16) {
-    TreeCapitator.registerTree([VanillaTileID.crimson_hyphae, 1], [VanillaTileID.nether_wart_block, 1], 6);
-    TreeCapitator.registerTree([VanillaTileID.warped_hyphae, 1], [VanillaTileID.warped_wart_block, 1], 6);
+    TreeCapitator.registerTree([VanillaTileID.crimson_stem, -1], [[VanillaTileID.nether_wart_block, -1], [VanillaTileID.shroomlight, -1]], 6);
+    TreeCapitator.registerTree([VanillaTileID.warped_stem, -1], [[VanillaTileID.warped_wart_block, -1], [VanillaTileID.shroomlight, -1]], 6);
 }
 ModAPI.registerAPI("TreeCapitator", TreeCapitator);
+Logger.Log("Registered TreeCapitator API.", "API");
 var TreeLogger = /** @class */ (function () {
-    function TreeLogger(treeData, playerUid, isLocal) {
+    function TreeLogger(startCoords, treeData, playerUid, isLocal) {
         this.logMap = {};
         this.leavesMap = {};
         this.logCount = 0;
         this.hasLeaves = false;
+        this.startCoords = startCoords;
         this.tree = treeData;
         this.player = playerUid;
         this.region = isLocal ?
@@ -81,6 +65,10 @@ var TreeLogger = /** @class */ (function () {
             BlockSource.getDefaultForActor(playerUid);
     }
     TreeLogger.prototype.checkLog = function (x, y, z, tree) {
+        if (Math.abs(x - this.startCoords.x) > this.tree.radius ||
+            Math.abs(z - this.startCoords.z) > this.tree.radius) {
+            return;
+        }
         this.logMap[x + ':' + y + ':' + z] = true;
         this.logCount++;
         for (var xx = x - 1; xx <= x + 1; xx++)
@@ -126,8 +114,9 @@ var TreeLogger = /** @class */ (function () {
     };
     TreeLogger.prototype.getVanillaDrop = function (x, y, z, block) {
         var id = block.id, data = block.data;
-        if (id == 17 || id == 161) {
-            this.region.spawnDroppedItem(x, y, z, id, 1, data);
+        var blockDefaultDrop = [17, 162, VanillaTileID.crimson_stem, VanillaTileID.warped_stem, VanillaTileID.nether_wart_block, VanillaTileID.warped_wart_block, VanillaTileID.shroomlight];
+        if (blockDefaultDrop.indexOf(id) != -1) {
+            this.region.spawnDroppedItem(x, y, z, Block.convertBlockToItemId(id), 1, data);
         }
         if (id == 18) {
             if (data != 3 && Math.random() < 1 / 20 || data == 3 && Math.random() < 1 / 40) {
@@ -140,7 +129,7 @@ var TreeLogger = /** @class */ (function () {
         if (id == 161 && Math.random() < 1 / 20) {
             this.region.spawnDroppedItem(x, y, z, 6, 1, data + 4);
         }
-        if (Math.random() < 1 / 50) {
+        if ((id == 18 || id == 161) && Math.random() < 1 / 50) {
             this.region.spawnDroppedItem(x, y, z, 280, 1, 0);
         }
     };
@@ -158,23 +147,11 @@ var TreeLogger = /** @class */ (function () {
         this.checkLeaves(x, y - 1, z);
         this.checkLeaves(x, y + 1, z);
     };
-    TreeLogger.prototype.isChoppingTree = function (coords, block, item) {
-        if (!Entity.getSneaking(this.player) && ToolAPI.getToolLevelViaBlock(item.id, block.id) > 0) {
-            for (var y = coords.y; y > 0; y--) {
-                var block_1 = this.region.getBlock(coords.x, y - 1, coords.z);
-                if (TreeCapitator.isDirtTile(block_1.id)) {
-                    return true;
-                }
-                if (!TreeCapitator.isTreeBlock(block_1, this.tree.log)) {
-                    break;
-                }
-            }
-        }
-        return false;
+    TreeLogger.prototype.isChoppingTree = function (block, item) {
+        return (!Entity.getSneaking(this.player) && ToolAPI.getToolLevelViaBlock(item.id, block.id) > 0);
     };
-    TreeLogger.prototype.getTreeSize = function (coords, block) {
-        var tree = TreeCapitator.getTreeData(block);
-        this.checkLog(coords.x, coords.y, coords.z, tree);
+    TreeLogger.prototype.getTreeSize = function (coords) {
+        this.checkLog(coords.x, coords.y, coords.z, this.tree);
         if (this.hasLeaves) {
             return this.logCount;
         }
@@ -190,9 +167,9 @@ var TreeLogger = /** @class */ (function () {
     };
     TreeLogger.prototype.setDestroyTime = function (coords, block) {
         var item = Entity.getCarriedItem(this.player);
-        if (this.isChoppingTree(coords, block, item)) {
-            var treeSize = this.getTreeSize(coords, block);
-            Game.message("Tree size: " + treeSize);
+        if (this.isChoppingTree(block, item)) {
+            var treeSize = this.getTreeSize(coords);
+            //Game.message("Tree size: " + treeSize);
             if (treeSize > 0) {
                 var destroyTime = ToolAPI.getDestroyTimeViaTool(block, item, coords);
                 Block.setTempDestroyTime(block.id, destroyTime * treeSize);
@@ -201,7 +178,7 @@ var TreeLogger = /** @class */ (function () {
     };
     TreeLogger.prototype.destroyTree = function (coords, block) {
         var item = Entity.getCarriedItem(this.player);
-        if (this.isChoppingTree(coords, block, item) && this.getTreeSize(coords, block) > 0) {
+        if (this.isChoppingTree(block, item) && this.getTreeSize(coords) > 0) {
             //if (NEW_CORE_API) this.region.setDestroyParticlesEnabled(false);
             var toolData = ToolAPI.getToolData(item.id);
             var enchant = ToolAPI.getEnchantExtraData(item.extra);
@@ -260,14 +237,14 @@ var TreeLogger = /** @class */ (function () {
     TreeLogger.onStartDestroy = function (coords, block, player) {
         var tree = TreeCapitator.getTreeData(block);
         if (tree) {
-            var treeLogger = new TreeLogger(tree, player, Network.inRemoteWorld());
+            var treeLogger = new TreeLogger(coords, tree, player, Network.inRemoteWorld());
             treeLogger.setDestroyTime(coords, block);
         }
     };
     TreeLogger.onDestroy = function (coords, block, player) {
         var tree = TreeCapitator.getTreeData(block);
         if (tree) {
-            var treeLogger = new TreeLogger(tree, player, false);
+            var treeLogger = new TreeLogger(coords, tree, player, false);
             treeLogger.destroyTree(coords, block);
         }
     };

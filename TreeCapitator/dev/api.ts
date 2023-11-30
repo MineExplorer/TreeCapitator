@@ -7,15 +7,13 @@ type TreeParams = {
 const GAME_VERSION = getMCPEVersion().array[1];
 const NEW_CORE_API = GAME_VERSION >= 16;
 
+if (GAME_VERSION >= 16) {
+	ToolAPI.registerBlockMaterial(VanillaTileID.crimson_stem, "wood", 1, true);
+	ToolAPI.registerBlockMaterial(VanillaTileID.warped_stem, "wood", 1, true);
+}
+
 namespace TreeCapitator {
 	const treeData: TreeParams[] = [];
-	const dirtTiles = {
-		2: true, // grass
-		3: true, // dirt
-		60: true, //farmland
-	}
-	dirtTiles[VanillaTileID.crimson_nylium] = true;
-	dirtTiles[VanillaTileID.warped_nylium] = true;
 
 	export let calculateDestroyTime = __config__.getBool("increase_tree_destroy_time");
 
@@ -40,14 +38,6 @@ namespace TreeCapitator {
 	}
 
 	/**
-	 * @param blockID block numeric id
-	 * @returns true if trees can grow on this tile, false otherwise
-	 */
-	export function isDirtTile(blockID: number): boolean {
-		return dirtTiles[blockID] || false;
-	}
-
-	/**
 	 * Registers mod tree.
 	 * @params [id, data] or [[id1, data1], [id2, data2], ...], use -1 in data for all block variations
 	 * @param leavesRadius radius from log in which leaves will be destroyed.
@@ -58,13 +48,6 @@ namespace TreeCapitator {
 		if (typeof leaves[0] !== "object") leaves = [leaves];
 		treeData.push({log: log, leaves: leaves, radius: leavesRadius});
 	}
-
-	/**
-	 * Registers block as a valid tree ground.
-	 */
-	export function registerDirtTile(blockID: number): void {
-		dirtTiles[blockID] = true;
-	}
 }
 
 TreeCapitator.registerTree([17, 0], [18, 0], 6); // oak
@@ -74,8 +57,10 @@ TreeCapitator.registerTree([17, 3], [18, 3], 7); // jungle
 TreeCapitator.registerTree([162, 0], [161, 0], 5); // acacia
 TreeCapitator.registerTree([162, 1], [161, 1], 6); // dark oak
 if (GAME_VERSION >= 16) {
-	TreeCapitator.registerTree([VanillaTileID.crimson_stem, 1], [VanillaTileID.nether_wart_block, 1], 6);
-	TreeCapitator.registerTree([VanillaTileID.warped_stem, 1], [VanillaTileID.warped_wart_block, 1], 6);
+	TreeCapitator.registerTree([VanillaTileID.crimson_stem, -1], [[VanillaTileID.nether_wart_block, -1], [VanillaTileID.shroomlight, -1]], 6);
+	TreeCapitator.registerTree([VanillaTileID.warped_stem, -1], [[VanillaTileID.warped_wart_block, -1], [VanillaTileID.shroomlight, -1]], 6);
 }
 
 ModAPI.registerAPI("TreeCapitator", TreeCapitator);
+
+Logger.Log("Registered TreeCapitator API.", "API");
