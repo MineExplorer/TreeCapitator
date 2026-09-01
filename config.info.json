@@ -5,12 +5,12 @@
 		},
 		"increase_tree_destroy_time": {
 			"name": {
-				"en": "Increase tree destroy time",
-				"ru": "Увеличивать время ломания дерева"
+				"en": "Proportional tree destroy time",
+				"ru": "Пропорциональное время добычи дерева"
 			},
 			"description": {
 				"en": "Tree destroy time will depend on its size",
-				"ru": "Время ломания дерева будет зависеть от его размера."
+				"ru": "Время добычи дерева будет зависеть от его размера."
 			}
 		}
 	}

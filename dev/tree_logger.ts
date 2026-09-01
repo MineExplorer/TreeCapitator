@@ -52,6 +52,7 @@ class TreeLogger {
 
 	destroyBlockLegacy(x: number, y: number, z: number, block: Tile, item: ItemInstance = {id: 0, count: 0, data: 0}, enchant?: ToolAPI.EnchantData): void {
 		this.region.setBlock(x, y, z, 0, 0);
+		// @ts-ignore
 		const dropFunc = Block.dropFunctions[block.id];
 		if (dropFunc) {
 			enchant = enchant || ToolAPI.getEnchantExtraData();
