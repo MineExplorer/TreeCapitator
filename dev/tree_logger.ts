@@ -6,6 +6,7 @@ class TreeLogger {
 	hasLeaves = false;
 	minVertice: Vector;
 	maxVertice: Vector;
+	logDestroyRadius: number;
 	startCoords: Vector;
 	player: number;
 	region: BlockSource;
@@ -14,6 +15,7 @@ class TreeLogger {
 	constructor(startCoords: Vector, treeData: TreeParams, playerUid: number, isLocal: boolean) {
 		this.startCoords = startCoords;
 		this.tree = treeData;
+		this.logDestroyRadius = TreeCapitator.logDestroyRadius;
 		this.minVertice = {x: startCoords.x, y: startCoords.y, z: startCoords.z};
 		this.maxVertice = {x: startCoords.x, y: startCoords.y, z: startCoords.z};
 		this.player = playerUid;
@@ -23,8 +25,8 @@ class TreeLogger {
 	}
 
 	checkLog(x: number, y: number, z: number, tree: TreeParams): void {
-		if (x < this.minVertice.x - this.tree.radius || x > this.maxVertice.x + this.tree.radius ||
-			z < this.minVertice.z - this.tree.radius || z > this.maxVertice.z + this.tree.radius) {
+		if (Math.abs(x - this.startCoords.x) > this.logDestroyRadius ||
+			Math.abs(z - this.startCoords.z) > this.logDestroyRadius) {
 			return;
 		}
 		this.logMap[x+':'+y+':'+z] = true;

@@ -1,4 +1,5 @@
 {
   "enabled":true,
-  "increase_tree_destroy_time":true
+  "increase_tree_destroy_time":true,
+  "log_destroy_radius":6
 }

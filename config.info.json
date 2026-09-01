@@ -12,6 +12,16 @@
 				"en": "Tree destroy time will depend on its size",
 				"ru": "Время добычи дерева будет зависеть от его размера."
 			}
+		},
+		"log_destroy_radius": {
+			"name": {
+				"en": "Log destroy radius",
+				"ru": "Радиус уничтожения брёвен"
+			},
+			"description": {
+				"en": "Determines maximum size of a tree to be destroyed",
+				"ru": "Определяет максимальный размер дерева для добычи"
+			}
 		}
 	}
 }

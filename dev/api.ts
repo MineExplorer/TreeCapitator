@@ -16,6 +16,7 @@ namespace TreeCapitator {
 	const treeData: TreeParams[] = [];
 
 	export let calculateDestroyTime = __config__.getBool("increase_tree_destroy_time");
+	export let logDestroyRadius = +__config__.getNumber("log_destroy_radius");
 
 	export function getTreeData(block: Tile): Nullable<TreeParams> {
 		for (let i in treeData) {
@@ -51,7 +52,7 @@ namespace TreeCapitator {
 }
 
 TreeCapitator.registerTree([17, 0], [18, 0], 3); // oak
-TreeCapitator.registerTree([17, 1], [18, 1], 4); // spruce
+TreeCapitator.registerTree([17, 1], [18, 1], 5); // spruce
 TreeCapitator.registerTree([17, 2], [18, 2], 2); // birch
 TreeCapitator.registerTree([17, 3], [18, 3], 5); // jungle
 TreeCapitator.registerTree([162, 0], [161, 0], 3); // acacia
