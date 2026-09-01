@@ -1,8 +1,11 @@
 class TreeLogger {
 	logMap: {[key: string]: boolean} = {};
 	leavesMap: {[key: string]: boolean} = {};
+	nextLeaves: Vector[] = [];
 	logCount = 0;
 	hasLeaves = false;
+	minVertice: Vector;
+	maxVertice: Vector;
 	startCoords: Vector;
 	player: number;
 	region: BlockSource;
@@ -11,6 +14,8 @@ class TreeLogger {
 	constructor(startCoords: Vector, treeData: TreeParams, playerUid: number, isLocal: boolean) {
 		this.startCoords = startCoords;
 		this.tree = treeData;
+		this.minVertice = {x: startCoords.x, y: startCoords.y, z: startCoords.z};
+		this.maxVertice = {x: startCoords.x, y: startCoords.y, z: startCoords.z};
 		this.player = playerUid;
 		this.region = isLocal ?
 			BlockSource.getCurrentClientRegion() :
@@ -18,12 +23,17 @@ class TreeLogger {
 	}
 
 	checkLog(x: number, y: number, z: number, tree: TreeParams): void {
-		if (Math.abs(x - this.startCoords.x) > this.tree.radius ||
-			Math.abs(z - this.startCoords.z) > this.tree.radius) {
+		if (x < this.minVertice.x - this.tree.radius || x > this.maxVertice.x + this.tree.radius ||
+			z < this.minVertice.z - this.tree.radius || z > this.maxVertice.z + this.tree.radius) {
 			return;
 		}
 		this.logMap[x+':'+y+':'+z] = true;
 		this.logCount++;
+		this.minVertice.x = Math.min(this.minVertice.x, x);
+		this.maxVertice.x = Math.max(this.maxVertice.x, x);
+		this.maxVertice.y = Math.max(this.maxVertice.y, y);
+		this.minVertice.z = Math.min(this.minVertice.z, z);
+		this.maxVertice.z = Math.max(this.maxVertice.z, z);
 		for (let xx = x - 1; xx <= x + 1; xx++)
 		for (let zz = z - 1; zz <= z + 1; zz++)
 		for (let yy = y; yy <= y + 1; yy++) {
@@ -88,23 +98,24 @@ class TreeLogger {
 	}
 
 	checkLeaves(x: number, y: number, z: number): void {
+		if (x < this.minVertice.x - this.tree.radius || x > this.maxVertice.x + this.tree.radius ||
+			z < this.minVertice.z - this.tree.radius || z > this.maxVertice.z + this.tree.radius ||
+			y < this.minVertice.y || y > this.maxVertice.y + this.tree.radius) {
+			return;
+		}
 		const key = x+':'+y+':'+z;
 		if (!this.leavesMap[key] && TreeCapitator.isTreeBlock(this.region.getBlock(x, y, z), this.tree.leaves)) {
 			this.leavesMap[key] = true;
+			this.nextLeaves.push({x: x, y: y, z: z});
 		}
 	}
 
-	checkLeavesFor6Sides(x: number, y: number, z: number): void {
-		this.checkLeaves(x-1, y, z);
-		this.checkLeaves(x+1, y, z);
-		this.checkLeaves(x, y, z-1);
-		this.checkLeaves(x, y, z+1);
-		this.checkLeaves(x, y-1, z);
-		this.checkLeaves(x, y+1, z);
-	}
-
-	static isChoppingTree(block: Tile, playerUid: number, item: ItemInstance): boolean {
-		return (!Entity.getSneaking(playerUid) && ToolAPI.getToolLevelViaBlock(item.id, block.id) > 0);
+	checkNeighbourLeaves(x: number, y: number, z: number): void {
+		for (let dx = -1; dx <= 1; dx++)
+		for (let dz = -1; dz <= 1; dz++)
+		for (let dy = -1; dy <= 1; dy++) {
+			this.checkLeaves(x + dx, y + dy, z + dz);
+		}
 	}
 
 	getTreeSize(coords: Vector): number {
@@ -152,7 +163,7 @@ class TreeLogger {
 			const coords = this.convertCoords(coordKey);
 			const block = this.region.getBlock(coords.x, coords.y, coords.z);
 			this.destroyBlock(coords.x, coords.y, coords.z, block, item, enchant);
-			this.checkLeavesFor6Sides(coords.x, coords.y, coords.z);
+			this.checkNeighbourLeaves(coords.x, coords.y, coords.z);
 			if (!skipToolDamage && Game.isItemSpendingAllowed(this.player)) {
 				if (!(toolData.onDestroy && toolData.onDestroy(item, coords as any, block, this.player)) && Math.random() < 1 / (enchant.unbreaking + 1)) {
 					item.data++;
@@ -176,21 +187,21 @@ class TreeLogger {
 	}
 
 	destroyLeaves() {
-		for (let i = 1; i <= this.tree.radius; i++) {
-			const leavesToDestroy = this.leavesMap;
-			this.leavesMap = {};
-			for (let coordKey in leavesToDestroy) {
-				const coords = this.convertCoords(coordKey);
+		while (this.nextLeaves.length > 0) {
+			const leavesToDestroy = this.nextLeaves;
+			this.nextLeaves = [];
+			for (let coords of leavesToDestroy) {
 				const block = this.region.getBlock(coords.x, coords.y, coords.z);
 				this.destroyBlock(coords.x, coords.y, coords.z, block);
 			}
-			if (i < this.tree.radius) {
-				for (let coordKey in leavesToDestroy) {
-					const coords = this.convertCoords(coordKey);
-					this.checkLeavesFor6Sides(coords.x, coords.y, coords.z);
-				}
+			for (let coords of leavesToDestroy) {
+				this.checkNeighbourLeaves(coords.x, coords.y, coords.z);
 			}
 		}
+	}
+
+	static isChoppingTree(block: Tile, playerUid: number, item: ItemInstance): boolean {
+		return (!Entity.getSneaking(playerUid) && ToolAPI.getToolLevelViaBlock(item.id, block.id) > 0);
 	}
 
 	static onStartDestroy(coords: Callback.ItemUseCoordinates, block: Tile, player: number): void {

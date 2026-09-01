@@ -50,15 +50,15 @@ namespace TreeCapitator {
 	}
 }
 
-TreeCapitator.registerTree([17, 0], [18, 0], 6); // oak
-TreeCapitator.registerTree([17, 1], [18, 1], 5); // spruce
-TreeCapitator.registerTree([17, 2], [18, 2], 5); // birch
-TreeCapitator.registerTree([17, 3], [18, 3], 7); // jungle
-TreeCapitator.registerTree([162, 0], [161, 0], 5); // acacia
-TreeCapitator.registerTree([162, 1], [161, 1], 6); // dark oak
+TreeCapitator.registerTree([17, 0], [18, 0], 3); // oak
+TreeCapitator.registerTree([17, 1], [18, 1], 4); // spruce
+TreeCapitator.registerTree([17, 2], [18, 2], 2); // birch
+TreeCapitator.registerTree([17, 3], [18, 3], 5); // jungle
+TreeCapitator.registerTree([162, 0], [161, 0], 3); // acacia
+TreeCapitator.registerTree([162, 1], [161, 1], 3); // dark oak
 if (GAME_VERSION >= 16) {
-	TreeCapitator.registerTree([VanillaTileID.crimson_stem, -1], [[VanillaTileID.nether_wart_block, -1], [VanillaTileID.shroomlight, -1]], 6);
-	TreeCapitator.registerTree([VanillaTileID.warped_stem, -1], [[VanillaTileID.warped_wart_block, -1], [VanillaTileID.shroomlight, -1]], 6);
+	TreeCapitator.registerTree([VanillaTileID.crimson_stem, -1], [[VanillaTileID.nether_wart_block, -1], [VanillaTileID.shroomlight, -1]], 3);
+	TreeCapitator.registerTree([VanillaTileID.warped_stem, -1], [[VanillaTileID.warped_wart_block, -1], [VanillaTileID.shroomlight, -1]], 3);
 }
 
 ModAPI.registerAPI("TreeCapitator", TreeCapitator);
