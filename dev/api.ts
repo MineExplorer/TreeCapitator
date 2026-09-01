@@ -17,10 +17,10 @@ namespace TreeCapitator {
 
 	export let calculateDestroyTime = __config__.getBool("increase_tree_destroy_time");
 
-	export function getTreeData(block: Tile): TreeParams {
+	export function getTreeData(block: Tile): Nullable<TreeParams> {
 		for (let i in treeData) {
 			const tree = treeData[i];
-			if (this.isTreeBlock(block, tree.log)){
+			if (isTreeBlock(block, tree.log)){
 				return tree;
 			}
 		}

@@ -1,6 +1,6 @@
 class TreeLogger {
-	logMap = {};
-	leavesMap = {};
+	logMap: {[key: string]: boolean} = {};
+	leavesMap: {[key: string]: boolean} = {};
 	logCount = 0;
 	hasLeaves = false;
 	startCoords: Vector;
@@ -103,8 +103,8 @@ class TreeLogger {
 		this.checkLeaves(x, y+1, z);
 	}
 
-	isChoppingTree(block: Tile, item: ItemInstance): boolean {
-		return (!Entity.getSneaking(this.player) && ToolAPI.getToolLevelViaBlock(item.id, block.id) > 0);
+	static isChoppingTree(block: Tile, playerUid: number, item: ItemInstance): boolean {
+		return (!Entity.getSneaking(playerUid) && ToolAPI.getToolLevelViaBlock(item.id, block.id) > 0);
 	}
 
 	getTreeSize(coords: Vector): number {
@@ -124,30 +124,26 @@ class TreeLogger {
 		}
 	}
 
-	setDestroyTime(coords: Callback.ItemUseCoordinates, block: Tile) {
-		const item = Entity.getCarriedItem(this.player);
-		if (this.isChoppingTree(block, item)) {
-			const treeSize = this.getTreeSize(coords);
-			//Game.message("Tree size: " + treeSize);
-			if (treeSize > 0) {
-				const destroyTime = ToolAPI.getDestroyTimeViaTool(block, item, coords);
-				Block.setTempDestroyTime(block.id, destroyTime * treeSize);
-			}
+	setDestroyTime(coords: Callback.ItemUseCoordinates, block: Tile, item: ItemInstance) {
+		const treeSize = this.getTreeSize(coords);
+		//Game.message("Tree size: " + treeSize);
+		if (treeSize > 0) {
+			const destroyTime = ToolAPI.getDestroyTimeViaTool(block, item, coords);
+			Block.setTempDestroyTime(block.id, destroyTime * treeSize);
 		}
 	}
 
-	destroyTree(coords: Callback.ItemUseCoordinates, block: Tile): void {
-		const item = Entity.getCarriedItem(this.player);
-		if (this.isChoppingTree(block, item) && this.getTreeSize(coords) > 0) {
-			//if (NEW_CORE_API) this.region.setDestroyParticlesEnabled(false);
-			const toolData = ToolAPI.getToolData(item.id);
-			const enchant = ToolAPI.getEnchantExtraData(item.extra);
-			if (toolData.modifyEnchant) {
-				toolData.modifyEnchant(enchant, item);
-			}
-			this.destroyLogs(item, toolData, enchant);
-			this.destroyLeaves();
+	destroyTree(coords: Callback.ItemUseCoordinates, block: Tile, item: ItemInstance): void {
+		if (this.getTreeSize(coords) == 0) return;
+
+		//if (NEW_CORE_API) this.region.setDestroyParticlesEnabled(false);
+		const toolData = ToolAPI.getToolData(item.id);
+		const enchant = ToolAPI.getEnchantExtraData(item.extra);
+		if (toolData.modifyEnchant) {
+			toolData.modifyEnchant(enchant, item);
 		}
+		this.destroyLogs(item, toolData, enchant);
+		this.destroyLeaves();
 	}
 
 	destroyLogs(item: ItemInstance, toolData: ToolAPI.ToolParams, enchant: ToolAPI.EnchantData): void {
@@ -199,17 +195,19 @@ class TreeLogger {
 
 	static onStartDestroy(coords: Callback.ItemUseCoordinates, block: Tile, player: number): void {
 		const tree = TreeCapitator.getTreeData(block);
-		if (tree) {
+		const item = Entity.getCarriedItem(player);
+		if (tree && TreeLogger.isChoppingTree(block, player, item)) {
 			const treeLogger = new TreeLogger(coords, tree, player, Network.inRemoteWorld())
-			treeLogger.setDestroyTime(coords, block);
+			treeLogger.setDestroyTime(coords, block, item);
 		}
 	}
 
 	static onDestroy(coords: Callback.ItemUseCoordinates, block: Tile, player: number): void {
 		const tree = TreeCapitator.getTreeData(block);
-		if (tree) {
+		const item = Entity.getCarriedItem(player);
+		if (tree && TreeLogger.isChoppingTree(block, player, item)) {
 			const treeLogger = new TreeLogger(coords, tree, player, false)
-			treeLogger.destroyTree(coords, block);
+			treeLogger.destroyTree(coords, block, item);
 		}
 	}
 }
