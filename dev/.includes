@@ -4,4 +4,6 @@
 # nocheck
 
 api.ts
-tree_logger.ts
+TreeLogger.ts
+VanillaTreeLogger.ts
+NetherTreeLogger.ts
