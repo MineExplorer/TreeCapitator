@@ -1,3 +1,5 @@
+const MAX_LEAVES_DESTROY_RADIUS = 6;
+
 class TreeLogger {
 	logMap: {[key: string]: boolean} = {};
 	leavesMap: {[key: string]: boolean} = {};
@@ -7,6 +9,7 @@ class TreeLogger {
 	minVertice: Vector;
 	maxVertice: Vector;
 	logDestroyRadius: number;
+	leavesDestroyRadius: number;
 	startCoords: Vector;
 	player: number;
 	region: BlockSource;
@@ -16,6 +19,7 @@ class TreeLogger {
 		this.startCoords = startCoords;
 		this.tree = treeData;
 		this.logDestroyRadius = TreeCapitator.logDestroyRadius;
+		this.leavesDestroyRadius = treeData.radius;
 		this.minVertice = {x: startCoords.x, y: startCoords.y, z: startCoords.z};
 		this.maxVertice = {x: startCoords.x, y: startCoords.y, z: startCoords.z};
 		this.player = playerUid;
@@ -24,7 +28,7 @@ class TreeLogger {
 			BlockSource.getDefaultForActor(playerUid);
 	}
 
-	checkLog(x: number, y: number, z: number, tree: TreeParams): void {
+	checkLog(x: number, y: number, z: number): void {
 		if (Math.abs(x - this.startCoords.x) > this.logDestroyRadius ||
 			Math.abs(z - this.startCoords.z) > this.logDestroyRadius) {
 			return;
@@ -40,11 +44,11 @@ class TreeLogger {
 		for (let zz = z - 1; zz <= z + 1; zz++)
 		for (let yy = y; yy <= y + 1; yy++) {
 			const block = this.region.getBlock(xx, yy, zz);
-			if (!this.hasLeaves && TreeCapitator.isTreeBlock(block, tree.leaves)) {
+			if (!this.hasLeaves && TreeCapitator.isTreeBlock(block, this.tree.leaves)) {
 				this.hasLeaves = true;
 			}
-			if (!this.logMap[xx+':'+yy+':'+zz] && TreeCapitator.isTreeBlock(block, tree.log)) {
-				this.checkLog(xx, yy, zz, tree);
+			if (!this.logMap[xx+':'+yy+':'+zz] && TreeCapitator.isTreeBlock(block, this.tree.log)) {
+				this.checkLog(xx, yy, zz);
 			}
 		}
 	}
@@ -100,9 +104,9 @@ class TreeLogger {
 	}
 
 	checkLeaves(x: number, y: number, z: number): void {
-		if (x < this.minVertice.x - this.tree.radius || x > this.maxVertice.x + this.tree.radius ||
-			z < this.minVertice.z - this.tree.radius || z > this.maxVertice.z + this.tree.radius ||
-			y < this.minVertice.y || y > this.maxVertice.y + this.tree.radius) {
+		if (x < this.minVertice.x - this.leavesDestroyRadius || x > this.maxVertice.x + this.leavesDestroyRadius ||
+			z < this.minVertice.z - this.leavesDestroyRadius || z > this.maxVertice.z + this.leavesDestroyRadius ||
+			y < this.minVertice.y || y > this.maxVertice.y + this.leavesDestroyRadius) {
 			return;
 		}
 		const key = x+':'+y+':'+z;
@@ -121,8 +125,9 @@ class TreeLogger {
 	}
 
 	getTreeSize(coords: Vector): number {
-		this.checkLog(coords.x, coords.y, coords.z, this.tree);
+		this.checkLog(coords.x, coords.y, coords.z);
 		if (this.hasLeaves) {
+			this.leavesDestroyRadius = Math.min(this.tree.radius + Math.floor(this.logCount / 15), MAX_LEAVES_DESTROY_RADIUS);
 			return this.logCount;
 		}
 		return 0;
@@ -150,6 +155,7 @@ class TreeLogger {
 		if (this.getTreeSize(coords) == 0) return;
 
 		//if (NEW_CORE_API) this.region.setDestroyParticlesEnabled(false);
+		//Game.message("Tree size: " + this.logCount + ", logRadius: " + this.logDestroyRadius + ", leavesRadius: " + this.leavesDestroyRadius);
 		const toolData = ToolAPI.getToolData(item.id);
 		const enchant = ToolAPI.getEnchantExtraData(item.extra);
 		if (toolData.modifyEnchant) {
