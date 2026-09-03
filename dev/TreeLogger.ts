@@ -42,14 +42,22 @@ abstract class TreeLogger {
 	destroyTree(coords: Callback.ItemUseCoordinates, block: Tile, item: ItemInstance): void {
 		if (this.getTreeSize(coords) == 0) return;
 
-		//Game.message("Tree size: " + this.logCount + ", logRadius: " + this.logDestroyRadius + ", leavesRadius: " + this.leavesDestroyRadius);
+		if (Game.isDeveloperMode) {
+			Game.message("[TreeCapitator] Tree size: " + this.logCoords.length + ", leavesRadius: " + this.leavesDestroyRadius);
+		}
+		const startTime = Debug.sysTime();
 		const toolData = ToolAPI.getToolData(item.id);
 		const enchant = ToolAPI.getEnchantExtraData(item.extra);
 		if (toolData.modifyEnchant) {
 			toolData.modifyEnchant(enchant, item);
 		}
+		this.collectLeafDistances();
 		this.destroyLogs(item, toolData, enchant);
 		this.destroyLeaves();
+		const endTime = Debug.sysTime();
+		if (Game.isDeveloperMode) {
+			Game.message("[TreeCapitator] Tree destroyed in " + (endTime - startTime) + " ms");
+		}
 	}
 
 	getTreeSize(coords: Vector): number {
@@ -62,11 +70,9 @@ abstract class TreeLogger {
 
 	destroyLogs(item: ItemInstance, toolData: ToolAPI.ToolParams, enchant: ToolAPI.EnchantData): void {
 		let skipToolDamage = !toolData.isNative;
-		const passedMap = {};
 		for (let coords of this.logCoords) {
 			const block = this.region.getBlock(coords.x, coords.y, coords.z);
 			this.destroyBlock(coords.x, coords.y, coords.z, block, item, enchant);
-			this.checkLeavesFor6Sides(coords.x, coords.y, coords.z, passedMap);
 			if (!skipToolDamage && Game.isItemSpendingAllowed(this.player)) {
 				if (!(toolData.onDestroy && toolData.onDestroy(item, coords as any, block, this.player)) && Math.random() < 1 / (enchant.unbreaking + 1)) {
 					item.data++;
@@ -89,10 +95,9 @@ abstract class TreeLogger {
 		Entity.setCarriedItem(this.player, item.id, item.count, item.data, item.extra);
 	}
 
-	abstract destroyLeaves(): void;
-
 	/** @returns true if a block was marked to destroy, false otherwise */
 	abstract checkLog(x: number, y: number, z: number, passedMap: {[key: string]: boolean}): boolean;
+	abstract forEachLeafNeighbour(x: number, y: number, z: number, callback: (x: number, y: number, z: number) => void): void;
 
 	checkNeighbourLogs(x: number, y: number, z: number, passedMap: {[key: string]: boolean}): void {
 		for (let xx = x - 1; xx <= x + 1; xx++)
@@ -102,27 +107,94 @@ abstract class TreeLogger {
 		}
 	}
 	
-	/** @returns true if a block was marked to destroy, false otherwise */
-	checkLeaves(x: number, y: number, z: number, passedMap: {[key: string]: boolean}, nextLeaves: Vector[] = this.nextLeaves): boolean {
-		const key = this.getCoordKey(x, y, z);
-		if (passedMap[key]) return false;
 
-		passedMap[key] = true;
-		const block = this.region.getBlock(x, y, z);
-		if (TreeCapitator.isTreeBlock(block, this.tree.leaves)) {
-			nextLeaves.push({x: x, y: y, z: z});
-			return true;
+	collectLeafDistances(): void {
+		const ownLogMap: {[key: string]: boolean} = {};
+		const ownLeafDistances: {[key: string]: number} = {};
+		const leafCoords: {[key: string]: Vector} = {};
+		let currentLeaves: Vector[] = [];
+		const scanRadius = this.leavesDestroyRadius + 1;
+
+		for (let coords of this.logCoords) {
+			ownLogMap[this.getCoordKey(coords.x, coords.y, coords.z)] = true;
+			this.forEachLeafNeighbour(coords.x, coords.y, coords.z, (x, y, z) => {
+				this.addLeafAtDistance(x, y, z, 1, ownLeafDistances, leafCoords, currentLeaves);
+			});
 		}
-		return false;
+
+		for (let distance = 1; distance < scanRadius && currentLeaves.length > 0; distance++) {
+			const nextLeaves: Vector[] = [];
+			for (let coords of currentLeaves) {
+				this.forEachLeafNeighbour(coords.x, coords.y, coords.z, (x, y, z) => {
+					this.addLeafAtDistance(x, y, z, distance + 1, ownLeafDistances, leafCoords, nextLeaves);
+				});
+			}
+			currentLeaves = nextLeaves;
+		}
+
+		const foreignLogs: Vector[] = [];
+		const checkedForeignLogCoords: {[key: string]: boolean} = {};
+		for (let key in leafCoords) {
+			const coords = leafCoords[key];
+			this.forEachLeafNeighbour(coords.x, coords.y, coords.z, (x, y, z) => {
+				const logKey = this.getCoordKey(x, y, z);
+				if (!ownLogMap[logKey] && !checkedForeignLogCoords[logKey]) {
+					checkedForeignLogCoords[logKey] = true;
+					if (!TreeCapitator.isTreeBlock(this.region.getBlock(x, y, z), this.tree.log)) return;
+					foreignLogs.push({x: x, y: y, z: z});
+				}
+			});
+		}
+
+		const foreignLeafDistances: {[key: string]: number} = {};
+		currentLeaves = [];
+		for (let coords of foreignLogs) {
+			this.forEachLeafNeighbour(coords.x, coords.y, coords.z, (x, y, z) => {
+				this.addKnownLeafAtDistance(x, y, z, 1, leafCoords, foreignLeafDistances, currentLeaves);
+			});
+		}
+		for (let distance = 1; distance < scanRadius && currentLeaves.length > 0; distance++) {
+			const nextLeaves: Vector[] = [];
+			for (let coords of currentLeaves) {
+				this.forEachLeafNeighbour(coords.x, coords.y, coords.z, (x, y, z) => {
+					this.addKnownLeafAtDistance(x, y, z, distance + 1, leafCoords, foreignLeafDistances, nextLeaves);
+				});
+			}
+			currentLeaves = nextLeaves;
+		}
+
+		this.nextLeaves = [];
+		for (let key in leafCoords) {
+			if (ownLeafDistances[key] <= this.leavesDestroyRadius &&
+				(foreignLeafDistances[key] === undefined || ownLeafDistances[key] <= foreignLeafDistances[key])) {
+				this.nextLeaves.push(leafCoords[key]);
+			}
+		}
 	}
 
-	checkLeavesFor6Sides(x: number, y: number, z: number, passedMap: {[key: string]: boolean}): void {
-		this.checkLeaves(x - 1, y, z, passedMap);
-		this.checkLeaves(x + 1, y, z, passedMap);
-		this.checkLeaves(x, y - 1, z, passedMap);
-		this.checkLeaves(x, y + 1, z, passedMap);
-		this.checkLeaves(x, y, z - 1, passedMap);
-		this.checkLeaves(x, y, z + 1, passedMap);
+	addLeafAtDistance(x: number, y: number, z: number, distance: number, distances: {[key: string]: number}, leafCoords: {[key: string]: Vector}, nextLeaves: Vector[]): void {
+		const key = this.getCoordKey(x, y, z);
+		if (distances[key] === undefined && TreeCapitator.isTreeBlock(this.region.getBlock(x, y, z), this.tree.leaves)) {
+			distances[key] = distance;
+			leafCoords[key] = {x: x, y: y, z: z};
+			nextLeaves.push(leafCoords[key]);
+		}
+	}
+
+	addKnownLeafAtDistance(x: number, y: number, z: number, distance: number, leafCoords: {[key: string]: Vector}, distances: {[key: string]: number}, nextLeaves: Vector[]): void {
+		const key = this.getCoordKey(x, y, z);
+		if (leafCoords[key] && distances[key] === undefined) {
+			distances[key] = distance;
+			nextLeaves.push(leafCoords[key]);
+		}
+	}
+
+	destroyLeaves(): void {
+		const emptyItem = {id: 0, count: 0, data: 0};
+		for (let coords of this.nextLeaves) {
+			const block = this.region.getBlock(coords.x, coords.y, coords.z);
+			this.destroyBlock(coords.x, coords.y, coords.z, block, emptyItem);
+		}
 	}
 
 	getCoordKey(x: number, y: number, z: number): string {

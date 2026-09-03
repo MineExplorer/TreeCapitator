@@ -23,21 +23,12 @@ class VanillaTreeLogger extends TreeLogger {
 		return false;
 	}
 	
-	destroyLeaves(): void {
-		const emptyItem = {id: 0, count: 0, data: 0};
-		const passedMap = {};
-		for (let iteration = 1; iteration <= this.leavesDestroyRadius && this.nextLeaves.length > 0; iteration++) {
-			const leavesToDestroy = this.nextLeaves;
-			this.nextLeaves = [];
-			for (let coords of leavesToDestroy) {
-				const block = this.region.getBlock(coords.x, coords.y, coords.z);
-				this.destroyBlock(coords.x, coords.y, coords.z, block, emptyItem);
-			}
-			if (iteration < this.leavesDestroyRadius) {
-				for (let coords of leavesToDestroy) {
-					this.checkLeavesFor6Sides(coords.x, coords.y, coords.z, passedMap);
-				}
-			}
-		}
+	forEachLeafNeighbour(x: number, y: number, z: number, callback: (x: number, y: number, z: number) => void): void {
+		callback(x - 1, y, z);
+		callback(x + 1, y, z);
+		callback(x, y - 1, z);
+		callback(x, y + 1, z);
+		callback(x, y, z - 1);
+		callback(x, y, z + 1);
 	}
 }
