@@ -1,6 +1,7 @@
 class VanillaTreeLogger extends TreeLogger {
 	destroyLeaves(): void {
 		const emptyItem = {id: 0, count: 0, data: 0};
+		const passedMap = {};
 		for (let iteration = 1; iteration <= this.leavesDestroyRadius && this.nextLeaves.length > 0; iteration++) {
 			const leavesToDestroy = this.nextLeaves;
 			this.nextLeaves = [];
@@ -10,7 +11,7 @@ class VanillaTreeLogger extends TreeLogger {
 			}
 			if (iteration < this.leavesDestroyRadius) {
 				for (let coords of leavesToDestroy) {
-					this.checkLeavesFor6Sides(coords.x, coords.y, coords.z);
+					this.checkLeavesFor6Sides(coords.x, coords.y, coords.z, passedMap);
 				}
 			}
 		}
