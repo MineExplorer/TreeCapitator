@@ -1,8 +1,7 @@
 abstract class TreeLogger {
-	logMap: {[key: string]: boolean} = {};
 	leavesMap: {[key: string]: boolean} = {};
+	logCoords: Vector[] = [];
 	nextLeaves: Vector[] = [];
-	logCount = 0;
 	hasLeaves = false;
 	logDestroyRadius: number = TreeCapitator.logDestroyRadius;
 	leavesDestroyRadius: number;
@@ -55,17 +54,16 @@ abstract class TreeLogger {
 	}
 
 	getTreeSize(coords: Vector): number {
-		this.checkLog(coords.x, coords.y, coords.z);
+		this.checkNeighbourLogs(coords.x, coords.y, coords.z, {});
 		if (this.hasLeaves) {
-			return this.logCount;
+			return this.logCoords.length;
 		}
 		return 0;
 	}
 
 	destroyLogs(item: ItemInstance, toolData: ToolAPI.ToolParams, enchant: ToolAPI.EnchantData): void {
 		let skipToolDamage = !toolData.isNative;
-		for (let coordKey in this.logMap) {
-			const coords = this.parseCoordKey(coordKey);
+		for (let coords of this.logCoords) {
 			const block = this.region.getBlock(coords.x, coords.y, coords.z);
 			this.destroyBlock(coords.x, coords.y, coords.z, block, item, enchant);
 			this.checkLeavesFor6Sides(coords.x, coords.y, coords.z);
@@ -93,28 +91,35 @@ abstract class TreeLogger {
 
 	abstract destroyLeaves(): void;
 
-	checkLog(x: number, y: number, z: number): void {
+	checkLog(x: number, y: number, z: number, passedMap: object): void {
 		if (Math.abs(x - this.startCoords.x) > this.logDestroyRadius ||
 			Math.abs(z - this.startCoords.z) > this.logDestroyRadius) {
 			return;
 		}
 		
 		const coordKey = this.getCoordKey(x, y, z);
-		this.logMap[coordKey] = true;
-		this.logCount++;
-		
+		if (passedMap[coordKey]) {
+			return;
+		}
+		passedMap[coordKey] = true;
+
+		const block = this.region.getBlock(x, y, z);
+		if (!this.hasLeaves && TreeCapitator.isTreeBlock(block, this.tree.leaves)) {
+			this.hasLeaves = true;
+			return;
+		}
+
+		if (TreeCapitator.isTreeBlock(block, this.tree.log)) {
+			this.logCoords.push({x: x, y: y, z: z});
+			this.checkNeighbourLogs(x, y, z, passedMap);
+		}
+	}
+
+	checkNeighbourLogs(x: number, y: number, z: number, passedMap: object): void {
 		for (let xx = x - 1; xx <= x + 1; xx++)
 		for (let zz = z - 1; zz <= z + 1; zz++)
 		for (let yy = y; yy <= y + 1; yy++) {
-			const block = this.region.getBlock(xx, yy, zz);
-			if (!this.hasLeaves && TreeCapitator.isTreeBlock(block, this.tree.leaves)) {
-				this.hasLeaves = true;
-				continue;
-			}
-			const nextCoordKey = this.getCoordKey(xx, yy, zz);
-			if (!this.logMap[nextCoordKey] && TreeCapitator.isTreeBlock(block, this.tree.log)) {
-				this.checkLog(xx, yy, zz);
-			}
+			this.checkLog(xx, yy, zz, passedMap);
 		}
 	}
 	
