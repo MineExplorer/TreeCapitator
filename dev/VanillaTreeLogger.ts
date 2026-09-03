@@ -23,12 +23,16 @@ class VanillaTreeLogger extends TreeLogger {
 		return false;
 	}
 	
-	forEachLeafNeighbour(x: number, y: number, z: number, callback: (x: number, y: number, z: number) => void): void {
-		callback(x - 1, y, z);
-		callback(x + 1, y, z);
-		callback(x, y - 1, z);
-		callback(x, y + 1, z);
-		callback(x, y, z - 1);
-		callback(x, y, z + 1);
+	forEachLeafNeighbour(x: number, y: number, z: number, callback: (x: number, y: number, z: number, distance: number) => void): void {
+		callback(x - 1, y, z, 1);
+		callback(x + 1, y, z, 1);
+		callback(x, y - 1, z, 1);
+		callback(x, y + 1, z, 1);
+		callback(x, y, z - 1, 1);
+		callback(x, y, z + 1, 1);
+	}
+
+	forEachForeignLeafNeighbour(x: number, y: number, z: number, callback: (x: number, y: number, z: number, distance: number) => void): void {
+		this.forEachLeafNeighbour(x, y, z, callback);
 	}
 }

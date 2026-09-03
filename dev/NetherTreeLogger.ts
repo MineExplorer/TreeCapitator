@@ -1,4 +1,15 @@
+const NETHER_VERTICAL_LEAVES_RADIUS = 10;
+
 class NetherTreeLogger extends TreeLogger {
+	minLeafY: number;
+	maxLeafY: number;
+
+	constructor(startCoords: Vector, treeData: TreeParams, playerUid: number, isLocal: boolean) {
+		super(startCoords, treeData, playerUid, isLocal);
+		this.minLeafY = startCoords.y - NETHER_VERTICAL_LEAVES_RADIUS;
+		this.maxLeafY = startCoords.y + NETHER_VERTICAL_LEAVES_RADIUS;
+	}
+
 	checkLog(x: number, y: number, z: number, passedMap: {[key: string]: boolean}): boolean {
 		if (Math.abs(x - this.startCoords.x) > this.logDestroyRadius ||
 			Math.abs(z - this.startCoords.z) > this.logDestroyRadius) {
@@ -25,12 +36,36 @@ class NetherTreeLogger extends TreeLogger {
 		return false;
 	}
 
-	forEachLeafNeighbour(x: number, y: number, z: number, callback: (x: number, y: number, z: number) => void): void {
+	getTreeSize(coords: Vector): number {
+		const size = super.getTreeSize(coords);
+		if (size > 0) {
+			for (let logCoords of this.logCoords) {
+				this.minLeafY = Math.min(this.minLeafY, logCoords.y - NETHER_VERTICAL_LEAVES_RADIUS);
+				this.maxLeafY = Math.max(this.maxLeafY, logCoords.y + NETHER_VERTICAL_LEAVES_RADIUS);
+			}
+		}
+		return size;
+	}
+
+	isLeafWithinBounds(x: number, y: number, z: number): boolean {
+		return y >= this.minLeafY && y <= this.maxLeafY;
+	}
+
+	forEachLeafNeighbour(x: number, y: number, z: number, callback: (x: number, y: number, z: number, distance: number) => void): void {
 		for (let dx = -1; dx <= 1; dx++)
 		for (let dz = -1; dz <= 1; dz++)
 		for (let dy = -1; dy <= 1; dy++) {
 			if (dx == 0 && dy == 0 && dz == 0) continue;
-			callback(x + dx, y + dy, z + dz);
+			callback(x + dx, y + dy, z + dz, dx == 0 && dz == 0 ? 0 : 1);
+		}
+	}
+
+	forEachForeignLeafNeighbour(x: number, y: number, z: number, callback: (x: number, y: number, z: number, distance: number) => void): void {
+		for (let dx = -1; dx <= 1; dx++)
+		for (let dz = -1; dz <= 1; dz++)
+		for (let dy = -1; dy <= 1; dy++) {
+			if (dx == 0 && dy == 0 && dz == 0) continue;
+			callback(x + dx, y + dy, z + dz, 1);
 		}
 	}
 }

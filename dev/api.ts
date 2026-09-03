@@ -96,8 +96,8 @@ TreeCapitator.registerTree([17, 3], [18, 3], 7); // jungle
 TreeCapitator.registerTree([162, 0], [161, 0], 5); // acacia
 TreeCapitator.registerTree([162, 1], [161, 1], 6); // dark oak
 if (GAME_VERSION >= 16) {
-	TreeCapitator.registerTree([VanillaTileID.crimson_stem, -1], [[VanillaTileID.nether_wart_block, -1], [VanillaTileID.shroomlight, -1]], 5, TreeType.Nether);
-	TreeCapitator.registerTree([VanillaTileID.warped_stem, -1], [[VanillaTileID.warped_wart_block, -1], [VanillaTileID.shroomlight, -1]], 5, TreeType.Nether);
+	TreeCapitator.registerTree([VanillaTileID.crimson_stem, -1], [[VanillaTileID.nether_wart_block, -1], [VanillaTileID.shroomlight, -1]], 4, TreeType.Nether);
+	TreeCapitator.registerTree([VanillaTileID.warped_stem, -1], [[VanillaTileID.warped_wart_block, -1], [VanillaTileID.shroomlight, -1]], 4, TreeType.Nether);
 }
 
 ModAPI.registerAPI("TreeCapitator", TreeCapitator);

@@ -97,7 +97,12 @@ abstract class TreeLogger {
 
 	/** @returns true if a block was marked to destroy, false otherwise */
 	abstract checkLog(x: number, y: number, z: number, passedMap: {[key: string]: boolean}): boolean;
-	abstract forEachLeafNeighbour(x: number, y: number, z: number, callback: (x: number, y: number, z: number) => void): void;
+	abstract forEachLeafNeighbour(x: number, y: number, z: number, callback: (x: number, y: number, z: number, distance: number) => void): void;
+	abstract forEachForeignLeafNeighbour(x: number, y: number, z: number, callback: (x: number, y: number, z: number, distance: number) => void): void;
+
+	isLeafWithinBounds(x: number, y: number, z: number): boolean {
+		return true;
+	}
 
 	checkNeighbourLogs(x: number, y: number, z: number, passedMap: {[key: string]: boolean}): void {
 		for (let xx = x - 1; xx <= x + 1; xx++)
@@ -107,29 +112,30 @@ abstract class TreeLogger {
 		}
 	}
 	
-
 	collectLeafDistances(): void {
 		const ownLogMap: {[key: string]: boolean} = {};
 		const ownLeafDistances: {[key: string]: number} = {};
 		const leafCoords: {[key: string]: Vector} = {};
 		let currentLeaves: Vector[] = [];
+		let nextLeaves: Vector[] = [];
 		const scanRadius = this.leavesDestroyRadius + 1;
 
 		for (let coords of this.logCoords) {
 			ownLogMap[this.getCoordKey(coords.x, coords.y, coords.z)] = true;
-			this.forEachLeafNeighbour(coords.x, coords.y, coords.z, (x, y, z) => {
-				this.addLeafAtDistance(x, y, z, 1, ownLeafDistances, leafCoords, currentLeaves);
+			this.forEachLeafNeighbour(coords.x, coords.y, coords.z, (x, y, z, stepDistance) => {
+				this.addLeafAtDistance(x, y, z, stepDistance, ownLeafDistances, leafCoords, stepDistance == 0 ? currentLeaves : nextLeaves);
 			});
 		}
 
-		for (let distance = 1; distance < scanRadius && currentLeaves.length > 0; distance++) {
-			const nextLeaves: Vector[] = [];
-			for (let coords of currentLeaves) {
-				this.forEachLeafNeighbour(coords.x, coords.y, coords.z, (x, y, z) => {
-					this.addLeafAtDistance(x, y, z, distance + 1, ownLeafDistances, leafCoords, nextLeaves);
+		for (let distance = 0; distance < scanRadius && (currentLeaves.length > 0 || nextLeaves.length > 0); distance++) {
+			for (let index = 0; index < currentLeaves.length; index++) {
+				const coords = currentLeaves[index];
+				this.forEachLeafNeighbour(coords.x, coords.y, coords.z, (x, y, z, stepDistance) => {
+					this.addLeafAtDistance(x, y, z, distance + stepDistance, ownLeafDistances, leafCoords, stepDistance == 0 ? currentLeaves : nextLeaves);
 				});
 			}
 			currentLeaves = nextLeaves;
+			nextLeaves = [];
 		}
 
 		const foreignLogs: Vector[] = [];
@@ -148,19 +154,21 @@ abstract class TreeLogger {
 
 		const foreignLeafDistances: {[key: string]: number} = {};
 		currentLeaves = [];
+		nextLeaves = [];
 		for (let coords of foreignLogs) {
-			this.forEachLeafNeighbour(coords.x, coords.y, coords.z, (x, y, z) => {
-				this.addKnownLeafAtDistance(x, y, z, 1, leafCoords, foreignLeafDistances, currentLeaves);
+			this.forEachForeignLeafNeighbour(coords.x, coords.y, coords.z, (x, y, z, stepDistance) => {
+				this.addKnownLeafAtDistance(x, y, z, stepDistance, leafCoords, foreignLeafDistances, stepDistance == 0 ? currentLeaves : nextLeaves);
 			});
 		}
-		for (let distance = 1; distance < scanRadius && currentLeaves.length > 0; distance++) {
-			const nextLeaves: Vector[] = [];
-			for (let coords of currentLeaves) {
-				this.forEachLeafNeighbour(coords.x, coords.y, coords.z, (x, y, z) => {
-					this.addKnownLeafAtDistance(x, y, z, distance + 1, leafCoords, foreignLeafDistances, nextLeaves);
+		for (let distance = 0; distance < scanRadius && (currentLeaves.length > 0 || nextLeaves.length > 0); distance++) {
+			for (let index = 0; index < currentLeaves.length; index++) {
+				const coords = currentLeaves[index];
+				this.forEachForeignLeafNeighbour(coords.x, coords.y, coords.z, (x, y, z, stepDistance) => {
+					this.addKnownLeafAtDistance(x, y, z, distance + stepDistance, leafCoords, foreignLeafDistances, stepDistance == 0 ? currentLeaves : nextLeaves);
 				});
 			}
 			currentLeaves = nextLeaves;
+			nextLeaves = [];
 		}
 
 		this.nextLeaves = [];
@@ -174,7 +182,7 @@ abstract class TreeLogger {
 
 	addLeafAtDistance(x: number, y: number, z: number, distance: number, distances: {[key: string]: number}, leafCoords: {[key: string]: Vector}, nextLeaves: Vector[]): void {
 		const key = this.getCoordKey(x, y, z);
-		if (distances[key] === undefined && TreeCapitator.isTreeBlock(this.region.getBlock(x, y, z), this.tree.leaves)) {
+		if (distances[key] === undefined && this.isLeafWithinBounds(x, y, z) && TreeCapitator.isTreeBlock(this.region.getBlock(x, y, z), this.tree.leaves)) {
 			distances[key] = distance;
 			leafCoords[key] = {x: x, y: y, z: z};
 			nextLeaves.push(leafCoords[key]);
