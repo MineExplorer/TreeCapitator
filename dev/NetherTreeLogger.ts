@@ -1,4 +1,30 @@
 class NetherTreeLogger extends TreeLogger {
+	checkLog(x: number, y: number, z: number, passedMap: {[key: string]: boolean}): boolean {
+		if (Math.abs(x - this.startCoords.x) > this.logDestroyRadius ||
+			Math.abs(z - this.startCoords.z) > this.logDestroyRadius) {
+			return false;
+		}
+		
+		const coordKey = this.getCoordKey(x, y, z);
+		if (passedMap[coordKey]) {
+			return false;
+		}
+		passedMap[coordKey] = true;
+
+		const block = this.region.getBlock(x, y, z);
+		if (TreeCapitator.isTreeBlock(block, this.tree.leaves)) {
+			this.hasLeaves = true;
+			// Shroomlights and wart blocks can replace parts of the trunk, so we need to check blocks above them.
+			this.checkLog(x, y + 1, z, passedMap);
+		}
+		else if (TreeCapitator.isTreeBlock(block, this.tree.log)) {
+			this.logCoords.push({x: x, y: y, z: z});
+			this.checkNeighbourLogs(x, y, z, passedMap);
+			return true;
+		}
+		return false;
+	}
+
 	checkNeighbourLeaves(x: number, y: number, z: number, passedMap: {[key: string]: boolean}, currentLeaves: Vector[]): void {
 		for (let dx = -1; dx <= 1; dx++)
 		for (let dz = -1; dz <= 1; dz++)

@@ -62,10 +62,11 @@ abstract class TreeLogger {
 
 	destroyLogs(item: ItemInstance, toolData: ToolAPI.ToolParams, enchant: ToolAPI.EnchantData): void {
 		let skipToolDamage = !toolData.isNative;
+		const passedMap = {};
 		for (let coords of this.logCoords) {
 			const block = this.region.getBlock(coords.x, coords.y, coords.z);
 			this.destroyBlock(coords.x, coords.y, coords.z, block, item, enchant);
-			this.checkLeavesFor6Sides(coords.x, coords.y, coords.z, {});
+			this.checkLeavesFor6Sides(coords.x, coords.y, coords.z, passedMap);
 			if (!skipToolDamage && Game.isItemSpendingAllowed(this.player)) {
 				if (!(toolData.onDestroy && toolData.onDestroy(item, coords as any, block, this.player)) && Math.random() < 1 / (enchant.unbreaking + 1)) {
 					item.data++;
@@ -90,29 +91,8 @@ abstract class TreeLogger {
 
 	abstract destroyLeaves(): void;
 
-	checkLog(x: number, y: number, z: number, passedMap: {[key: string]: boolean}): void {
-		if (Math.abs(x - this.startCoords.x) > this.logDestroyRadius ||
-			Math.abs(z - this.startCoords.z) > this.logDestroyRadius) {
-			return;
-		}
-		
-		const coordKey = this.getCoordKey(x, y, z);
-		if (passedMap[coordKey]) {
-			return;
-		}
-		passedMap[coordKey] = true;
-
-		const block = this.region.getBlock(x, y, z);
-		if (!this.hasLeaves && TreeCapitator.isTreeBlock(block, this.tree.leaves)) {
-			this.hasLeaves = true;
-			return;
-		}
-
-		if (TreeCapitator.isTreeBlock(block, this.tree.log)) {
-			this.logCoords.push({x: x, y: y, z: z});
-			this.checkNeighbourLogs(x, y, z, passedMap);
-		}
-	}
+	/** @returns true if a block was marked to destroy, false otherwise */
+	abstract checkLog(x: number, y: number, z: number, passedMap: {[key: string]: boolean}): boolean;
 
 	checkNeighbourLogs(x: number, y: number, z: number, passedMap: {[key: string]: boolean}): void {
 		for (let xx = x - 1; xx <= x + 1; xx++)
@@ -122,15 +102,18 @@ abstract class TreeLogger {
 		}
 	}
 	
-	checkLeaves(x: number, y: number, z: number, passedMap: {[key: string]: boolean}, nextLeaves: Vector[] = this.nextLeaves): void {
+	/** @returns true if a block was marked to destroy, false otherwise */
+	checkLeaves(x: number, y: number, z: number, passedMap: {[key: string]: boolean}, nextLeaves: Vector[] = this.nextLeaves): boolean {
 		const key = this.getCoordKey(x, y, z);
-		if (passedMap[key]) return;
+		if (passedMap[key]) return false;
 
 		passedMap[key] = true;
 		const block = this.region.getBlock(x, y, z);
 		if (TreeCapitator.isTreeBlock(block, this.tree.leaves)) {
 			nextLeaves.push({x: x, y: y, z: z});
+			return true;
 		}
+		return false;
 	}
 
 	checkLeavesFor6Sides(x: number, y: number, z: number, passedMap: {[key: string]: boolean}): void {
